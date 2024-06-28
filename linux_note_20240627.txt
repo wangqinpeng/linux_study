@@ -1,0 +1,590 @@
+===========================================================================================================================================================
+
+awk命令
+
+创建文件
+a  1
+b  3 34
+c  2 34
+d  7 34
+b  5 34
+a  3 34
+g  2 34
+f  6 34
+1、要求用awk的语法格式，以第一列为参照物计算出各参照物的数量之和；
+
+awk ‘{if(NF>2)array[$1]=array[$1]+$2}END{for(i in array)print i,array[i]}' createfile.txt
+
+解析：当每行的NF>2时，创建数组array，并以每行的$1作为数组下标，$2作为值。使用环境：当数据有两列，同时需要统计每列去重后每项数据所对应的值。
+
+
+2、以数字为下标的数组seq生成1-10的数字，要求只显示奇数行；
+
+seq 10 | awk '{array[$1]=$0}END{for(i in array) if(i<=NR-3&&i!=10) print i,array[i]}' --->用关联型数组，没法完美判断i的值与NR之间的关系；
+
+seq 10 | awk '{array[NR]=$0}END{for(i=1;i<=NR-3;i++) print i,array[i]}' --->用索引型数组，可以这利用加减算法完美判断i与NR之前的大小关系；
+
+3、利用awk数组去重；
+[root@creditease awk]# cat qc.txt 
+2018/10/20   xiaoli     13373305025
+2018/10/25   xiaowang   17712215986
+2018/11/01   xiaoliu    18615517895 
+2018/11/12   xiaoli     13373305025
+2018/11/19   xiaozhao   15512013263
+2018/11/26   xiaoliu    18615517895
+2018/12/01   xiaoma     16965564525
+2018/12/09   xiaowang   17712215986
+2018/11/24   xiaozhao   15512013263
+
+cat qc.txt | awk '{array[$2]=$0}END{for(i in array) print array[i]}'
+
+4、利用awk数组重新拼接两个文件，对齐格式；
+[root@creditease awk]# cat file1.txt 
+a b
+c d
+e f
+g h
+i j
+[root@creditease awk]# cat file2.txt 
+1 2
+3 4
+5 6
+7 8
+9 10
+
+awk '{if(NR==FNR) {array[FNR]=$1}}{if(NR!=FNR) {print array[FNR],$2}}' file1.txt file2、
+
+注意：awk在进行处理时，首先针对NR==FNR的情况，利用array[FNR]=$1将file1的文件的$1读出来保存，接着，当读到file2的时候，NR!=FNR的情况下，这时候FNR为file2的行数（1--x行），哪怕之前
+array[FNR]已经完整取到file1的内容，但是还是会被file2的FNR的值所影响，因此只会输出与file2相同行数的file1的内容。因此如果需要合并后文件行数保持一致的情况下，把行数较长的文件
+放在前面
+
+awk '{if(NR==FNR) {array[FNR]=$1}}{if(NR!=FNR) {print array[FNR],$2>"newfile.txt"}}' file1.txt  file2.txt
+
+注意：print 后需要重定向文件，需要把文件打上双引号，同时，重定向符号可以直接跟在print参数后面，不用加空格符。
+
+4、去重，并统计访问网址的次数；
+[root@tguocentos_7:1 file] $ cat url.txt
+http://www.baidu.com
+http://mp4.video.cn
+http://www.qq.com
+http://www.listeneasy.com
+http://mp3.music.com
+http://www.qq.com
+http://www.qq.com
+http://www.listeneasy.com
+http://www.listeneasy.com
+http://mp4.video.cn
+http://mp3.music.com
+http://www.baidu.com
+http://www.baidu.com
+http://www.baidu.com
+http://www.baidu.com
+[root@tguocentos_7:1 file] $ awk -F "/+" -v OFS="|" '{array[$2]++}END{for(i in array) print i,array[i]}' url.txt |  sort -n
+
+注意：去重的重点为把需要罗列的参数作为数组的下标，同时匹配上数组下标即+1计数，统一完成动作后，最后打印出$2的值，同时打印出array[$2]计数的值。这里-F的参数后面可以用正则表达式表示。
+
+5、替换文件内容；
+[root@tguocentos_7:1 file] $ cat sub.txt
+ABC DEF AHI GKL$123
+BAC DEF AHI GKL$213
+CBA DEF GHI GKL$321
+[root@tguocentos_7:1 file] $ awk '{sub(/A/,“a”,$1);print $0}' sub.txt
+[root@tguocentos_7:1 file] $ awk '{gsub(/A/,“a”);print $0}' sub.txt
+注意：sub和gsub的区别在于，gsub是针对全局替换；替换内容一定要用双引号括起来，否则不会被识别，默认为空；同时sub和gsub（）中还可以指定范围。比如：$1,$2..，
+同时在sub（）命令之后，一定要接上分号（；），至关重要，否则会报错。
+
+[root@tguocentos_7:1 file] $ cat sub1.txt
+0001|20081223efskjfdj|EREADFASDLKJCV
+0002|20081208djfksdaa|JDKFJALSDJFsddf
+0003|20081208efskjfdj|EREADFASDLKJCV
+0004|20081211djfksdaa1234|JDKFJALSDJFsddf
+[root@tguocentos_7:1 file] $ awk -F "|" -v OFS="|" '{sub(/^[0-9]+/,"",$2);print $0}' sub1.txt
+0001|efskjfdj|EREADFASDLKJCV
+0002|djfksdaa|JDKFJALSDJFsddf
+0003|efskjfdj|EREADFASDLKJCV
+0004|djfksdaa1234|JDKFJALSDJFsddf
+
+注意：在使用输出参数OFS的时候有两种方式：1、-v OFS=“|” 2、BEGIN{OFS=“|”}
+例如：
+1、awk -F "|" -v OFS="|" '{sub(/^[0-9]+/,"",$2);print $0}' sub1.txt
+2、awk -F "|" 'BEGIN{OFS="|"}{sub(/^[0-9]+/,"",$2);print $0}' sub1.txt
+
+
+6、使用if，else字符串，通过匹配正则表达式字符串，添加标签；
+[root@tguocentos_7:0 file] $ cat ifelse.txt 
+AA
+BC
+AA
+CB
+CC
+AA
+[root@tguocentos_7:0 file] $ awk '{if($0!~/AA/){print $0,"no ok"} else {print $0,"ok"}}' ifelse.txt
+注意：在awk中，正则表达式的匹配符号有两个，~,!~，正则表达式需要//双斜线括起来使用，同时在awk中if语法的条件判断一定需要加上()；而awk自身的条件判断不需要加上()，而是下载‘’内，条件还是通过写在//内来进行定界。
+另外在使用if else的时候，要注意整个语法要在awk的{}内，不能写成awk '{if($0!~/AA/){print $0,"no ok"}} else {print $0,"ok"}'，这样会报错。
+"~"表示匹配，“!~”表示不匹配；
+
+7、next的用法
+[root@tguocentos_7:0 file] $ cat ifelse.txt 
+AA
+BC
+AA
+CB
+CC
+AA
+[root@tguocentos_7:0 file] $ awk '$0~/AA/{print $0,"YES";next}{print $0,"NO YES"}' ifelse.txt
+注意：相当于if else的用法，当使用next的时候，当$0匹配上正则表达式/AA/的时候，则打印YES，同时执行next命令（下一个动作不执行），直接跳到下一行再进行模式匹配；而当下一行未匹配
+上正则表达式/AA/的时候，则执行next命令，执行下一个动作，即print no yes。
+
+8、使用printf不换行输出和next的用法
+[root@tguocentos_7:0 file] $ cat espace.txt 
+Packages: Hello-1
+Owner: me me me me
+Other: who care?
+Description:
+Hello world!
+Other2: don't care
+[root@tguocentos_7:0 file] $ awk '/^Des.*:$/{printf $0}!/^Des.*:$/{print $0}' espace.txt
+注意：这个命令灵活的运用了printf的特性（不换行），当执行awk '/^Des.*:$/{printf $0}'时，PS1的提示符是紧跟在显示的Descriptions:之后的，类似Description:[root@tguocentos_7:0 file] $，
+因此在命令之后，执行!/^Des.*:$/{print $0}的hello world！就紧跟在Description:之后了，这就是灵活应用的printf的特性。
+
+[root@tguocentos_7:0 file] $ awk '/^Des.*:$/{printf $0;next}{print $0}' espace.txt
+next的用法
+
+[root@tguocentos_7:0 file] $ awk '{if(/^Des.*:$/) {printf $0} else {print $0}}' espace.txt
+注意：if else的语法需要再整个花括号内，不能让else语句独立！
+
+9、去重计数按要求重定向到指定文件
+[root@tguocentos_7:0 file] $ cat qcjs.txt 
+aaa
+bbb
+ccc
+aaa
+ddd
+bbb
+rrr
+ttt
+ccc
+eee
+ddd
+rrr
+bbb
+rrr
+bbb
+[root@tguocentos_7:0 file] $ awk '{array[$0]++}END{for(i in array) if(array[i]>2) {print i,array[i]>"gt2.txt"} else {print i,array[i]>"le2.txt"}}' qcjs.txt
+一定注意语句的格式。for语句，if else语句。
+
+10、利用awk数组进行文件内容的逐行比较；
+[root@controller tmp]# cat check.txt 
+e68af1c984c6bad72e49aca6d0a3e907  -
+(stdin)= e68af1c984c6bad72e49aca6d0a3e907
+(stdin)= e68af1c984c6bad72e49aca6d0a3e907
+(stdin)= e68af1c984c6bad72e49aca6d0a3e907
+(stdin)= e68af1c984c6bad72e49aca6d0a3e907
+e68af1c984c6bad72e49aca6d0a3e907
+757228086dc1e621e37bed30e0b73e17
+757228086dc1e621e37bed30e0b73e1
+
+[root@controller tmp]# awk '{array[NR]=$1}END{for(i in array) if(array[i]=="757228086dc1e621e37bed30e0b73e17") {print i,array[i]}}' ./check.txt 
+7 757228086dc1e621e37bed30e0b73e17
+8 757228086dc1e621e37bed30e0b73e17
+
+注意：在实际工作中，check.txt文件往往是“设备的hostname+空格+待验证文件的特征码”，其利用的awk的数组，array[$1]=$2,再利用后面的for函数，将i进行数组内容替换，打印出内容相同的行后再进行“wc -l”命令进行统计。
+
+或者按照用法9，进行去重操作(推荐使用)：
+[root@controller tmp]# awk '{array[$0]++}END{for(i in array) {print i,array[i]}}' check.txt
+757228086dc1e621e37bed30e0b73e17 2
+e68af1c984c6bad72e49aca6d0a3e907 1
+(stdin)= e68af1c984c6bad72e49aca6d0a3e907 4
+e68af1c984c6bad72e49aca6d0a3e907  - 1
+
+=====================================================================================================================================================================
+
+sort命令
+
+[root@tguocentos_7:0 file] $ cat qcjs.txt 
+aaa
+bbb
+ccc
+aaa
+ddd
+bbb
+rrr
+ttt
+ccc
+eee
+ddd
+rrr
+bbb
+rrr
+bbb
+[root@tguocentos_7:0 file] $ cat qcjs.txt | sort -n |uniq
+注意：与cat qcjs.txt | sort -u类似，sort -u 去重后排序，可以针对重复字段不在一起进行去重；而uniq去重的先决条件是重复字段必须在一起。
+uniq -u 代表列出文章中的不重复字符串；uniq -i 代表不区分大小写进行去常用，先决条件都是重复字段必须得在一起。
+
+=====================================================================================================================================================================
+
+xargs命令的详细选项：
+
+-0, --null
+ 如果输入的 stdin 含有特殊字符，例如反引号 `、反斜杠 \、空格等字符时，xargs 将它还原成一般字符。为默认选项
+-a, --arg-file=FILE
+ 从指定的文件 FILE 中读取输入内容而不是从标准输入
+-d, --delimiter=DEL
+ 指定 xargs 处理输入内容时的分隔符。xargs 处理输入内容默认是按空格和换行符作为分隔符，输出 arguments 时按空格分隔
+-E EOF_STR
+ EOF_STR 是 end of file string，表示输入的结束
+-e, --eof[=EOF_STR]
+ 作用等同于 -E 选项，与 -E 选项不同时，该选项不符合 POSIX 标准且 EOF_STR 不是强制的。如果没有 EOF_STR 则表示输入没有结束符
+-I REPLACE_STR
+ 将 xargs 输出的每一项参数单独赋值给后面的命令，参数需要用指定的替代字符串 REPLACE_STR 代替。REPLACE_STR 可以使用 {} $ @ 等符号，其主要作用是当 xargs command 后有多个参数时，调整参数位置。例如备份以 txt 为后缀的文件：find . -name "*.txt" | xargs -I {}  cp {} /tmp/{}.bak
+-i, --replace[=REPLACE_STR]
+ 作用同 -I 选项，参数 REPLACE_STR 是可选的，缺省为 {}。建议使用 -I 选项，因为其符合 POSIX
+-L MAX_LINES
+ 限定最大输入行数。隐含了 -x 选项
+-l, --max-lines[=MAX_LINES]
+ 作用同 -L 选项，参数 MAX_LINES 是可选的，缺省为 1。建议使用 -L 选项，因为其符合 POSIX 标准
+-n, --max-args=MAX_ARGS
+ 表示命令在执行的时候一次使用参数的最大个数
+-o, --open-tty
+ 在执行命令之前，在子进程中重新打开stdin作为/dev/TTY。如果您希望xargs运行交互式应用程序，这是非常有用的
+-P, --max-procs=MAX_PROCS
+ 每次运行最大进程；缺省值为 1。如果 MAX_PROCS 为 0，xargs 将一次运行尽可能多的进程。一般和 -n 或 -L 选项一起使用
+-p, --interactive
+ 当每次执行一个 argument 的时候询问一次用户
+--process-slot-var=NAME
+ 将指定的环境变量设置为每个正在运行的子进程中的唯一值。一旦子进程退出，将重用该值。例如，这可以用于初始负荷分配方案
+-r, --no-run-if-empty
+ 当 xargs 的输入为空的时候则停止 xargs，不用再去执行后面的命令了。为默认选项
+-s, --max-chars=MAX_CHARS
+ 命令行的最大字符数，指的是 xargs 后面那个命令的最大命令行字符数，包括命令、空格和换行符。每个参数单独传入 xargs 后面的命令
+--show-limits
+ 显示操作系统对命令行长度的限制
+-t， --verbose
+ 先打印命令到标准错误输出，然后再执行
+--help
+ 显示帮助信息并退出
+--version
+ 显示版本信息并退出
+-x, --exit
+ 配合 -s 使用，当命令行字符数大于 -s 指定的数值时，退出 xargs
+ 
+ 
+注意：使用xargs的时候，xargs的作用是将前一个命令的结果作为后一个命令的参数（且只能放在最后一个位置），例如：find /data/log -type f -name "*.log" -print0 | xargs -0 rm -f，如果xargs传递前一个命令的结果需要在后面命令的中间位置运行，则xargs命令需要加上-I或者-i参数，用来做为前一个命令的替换，这是非常有必要的。如果放置在后一个命令的最后参数位置，则无需加-i或-I参数。
+xargs -a file.txt -L 1 -t ping -c 1 
+xargs命令的-a选项，是将一个文件内容传递给后面需要执行的命令，同时指定-L 1，意思是一行一行读取，-t的意思是打印详细信息到屏幕；
+
+
+==========================================================================================
+
+
+date命令：
+date '+%Y%m%d %H%M%S' 在这串命令中，实际上单引号是不需要用上的，由于在表示年月日时分秒的时候，中间出现了空格，因此date会误以为空格后面是第二个参数，因此会报错，所以在后面你从参数出现空格的时候，需要用到单引号，即强引用形成一个整体让date命令识别。
+
+在使用date命令的时候，就可以将后面的参数专门定义一个变量，例如：dateformat=‘%Y%m%d%H%M%S’,注意：date命令特别注意+号的位置，所以在定义变量的时候，不要将+号定义进去，而是在使用date命令的时候将其单独使用，例如：
+touch file_$(date "+$dateformat")
+以上面命令为例，创建文件的时候，若变量的值为连续的，双引号打在$dateformat或+$dateformat上都可以，或不加双引号也可以；但如果变量之间有空格，则会让touch命令执行两遍即创建两个文件(在双引号加持下，$dateformat会进行变量替换)，而如果在单引号的情况下，则直接创建$dateformat的文件，不会进行变量替换。
+
+
+结合crontab -e，可以判断在每个月的1-7天内确定一个星期几来执行，例如：
+00 23 1-7 * Tue [ "$(date '+\%a')" == "Tue" ] && ls 
+
+命令解释： crontab 内容里面前5列的内容分别是”分“，”时“，”日“，”月“，“周” + command ，当执行if test判断的时候，date命令‘+%a’中的%必须得用“\”来进行转义(特指通过crontab -e编辑文件时)，否则到执行时间时会报错，报错类似“Syntax error”等。
+
+每月的1-7，8-14,15-21,22-28,这几个段都是完整的一周时间，必定会出现一个指定的星期“几”，也就是说，每个月都会出现4个相同的星期数，以此我们指定一个月中的日期范围，来定期执行某一项任务。
+
+
+============================================================================================
+
+[root@tguocentos_7:2 file] $ vim trackmatch.sh 
+
+#!/bin/bash
+#
+
+for i in *
+do
+        if [[ "$i" =~ [[:alpha:][:blank:]]*-\ [[:digit:]]*\ -\ (.*)$ ]];then
+                echo "match $i ok"
+        fi
+done
+
+注意：使用=~来进行正则表达式模式匹配时，不能使用引号，包括双引号、单引号，正则表达式中间需要转义空格。使用POSIX格式的正则表达式时只能使用[]来引用需要进行匹配的字符集，而不能使用().
+
+
+
+===========================================================================================
+
+ssh 命令
+
+ssh-keygen -b 4096 -t rsa -N redhat -C my-keygen -f my-keygen_file 
+-b 指定秘钥长度，-t 指定秘钥类型，-C 秘钥串后面加上注释 -f 指定生成的文件名，默认是id_rsa
+
+生成密钥对后，可以通过ssh-copy-id拷贝到远端服务器上，同时也可以通过ssh remote_user@remote_ipadd "echo $(cat /root/.ssh/id.rsa.pub) >> /root/.ssh/authorized_keys"拷贝到远程主机上；（远程主机默认开启publickey认证）
+
+同时注意如果指定了id_rsa的秘钥名称，则在进行publickey认证的过程中，需要加上-i参数，并指定其所需要的私钥文件，并输入密码。若想通过publickey认证方式免密登录（私钥有密码），则需要开启ssh-agent客户端，开启方法为eval ·ssh-agent·(关闭ssh-agent使用eval ·ssh-agent -k·)，开启后指定ssh-add xxx (xxx指私钥文件)，输入密码后，在下一次重启之前都可以再publickey认证的情况下，免密登录。
+
+通过ssh拷贝公钥信息的前提是 远端服务器一定要拥有/root/.ssh目录文件，而通过ssh-copy-id可以自动创建目录信息。
+
+ssh-copy-id [-i [identity_file]] [-p port] [[-o <ssh -o options>] ...] [user@]hostname
+
+
+ssh的配置文件在/etc/ssh/sshd_config,其中可以设置AuthenticationMethod为(publickey)、(password)、(publickey,password)、(publickey,publickey)，'()'仅用来表明其参数值，具体设置时不需要加上，在同时开启了password与PublicAuthenticate的情况下，优先publickey，如果指定了AuthenticationMethod的情况下，以指定的模式为主。
+
+在执行ssh remote_user@remote_host时，例如：ssh root@192.168.31.101 "echo "local $HOSTNAME and remote \$HOSTNAME"" 在此例句中，不加反斜线转义表示变量为本地变量，在进行本地变量插值后再再远端执行，而加了反斜线转义的变量，则为远端主机变量，在远端进行变量插值。
+
+
+==============================================================================================
+
+PS1的提示符（待补充）
+
+==============================================================================================
+
+iptables命令
+
+-t, --table table 对指定的表 table 进行操作， table 必须是 raw， nat，filter，mangle 中的一个。如果不指定此选项，默认的是 filter 表。
+
+# 通用匹配：源地址目标地址的匹配
+-p：指定要匹配的数据包协议类型；
+-s, --source [!] address[/mask] ：把指定的一个／一组地址作为源地址，按此规则进行过滤。当后面没有 mask 时，address 是一个地址，比如：192.168.1.1；当 mask 指定时，可以表示一组范围内的地址，比如：192.168.1.0/255.255.255.0。
+-d, --destination [!] address[/mask] ：地址格式同上，但这里是指定地址为目的地址，按此进行过滤。
+-i, --in-interface [!] <网络接口name> ：指定数据包的来自来自网络接口，比如最常见的 eth0 。注意：它只对 INPUT，FORWARD，PREROUTING 这三个链起作用。如果没有指定此选项， 说明可以来自任何一个网络接口。同前面类似，"!" 表示取反。
+-o, --out-interface [!] <网络接口name> ：指定数据包出去的网络接口。只对 OUTPUT，FORWARD，POSTROUTING 三个链起作用。
+
+# 查看管理命令
+-L, --list [chain] 列出链 chain 上面的所有规则，如果没有指定链，列出表上所有链的所有规则。
+
+# 规则管理命令
+-A, --append chain rule-specification 在指定链 chain 的末尾插入指定的规则，也就是说，这条规则会被放到最后，最后才会被执行。规则是由后面的匹配来指定。
+-I, --insert chain [rulenum] rule-specification 在链 chain 中的指定位置插入一条或多条规则。如果指定的规则号是1，则在链的头部插入。这也是默认的情况，如果没有指定规则号。
+-D, --delete chain rule-specification -D, --delete chain rulenum 在指定的链 chain 中删除一个或多个指定规则。
+-R num：Replays替换/修改第几条规则
+
+# 链管理命令（这都是立即生效的）
+-P, --policy chain target ：为指定的链 chain 设置策略 target。注意，只有内置的链才允许有策略，用户自定义的是不允许的。
+-F, --flush [chain] 清空指定链 chain 上面的所有规则。如果没有指定链，清空该表上所有链的所有规则。
+-N, --new-chain chain 用指定的名字创建一个新的链。
+-X, --delete-chain [chain] ：删除指定的链，这个链必须没有被其它任何规则引用，而且这条上必须没有任何规则。如果没有指定链名，则会删除该表中所有非内置的链。
+-E, --rename-chain old-chain new-chain ：用指定的新名字去重命名指定的链。这并不会对链内部造成任何影响。
+-Z, --zero [chain] ：把指定链，或者表中的所有链上的所有计数器清零。
+
+-j, --jump target <指定目标> ：即满足某条件时该执行什么样的动作。target 可以是内置的目标，比如 ACCEPT，也可以是用户自定义的链。
+-h：显示帮助信息；
+
+开放所有的ssh链接，包括自身发起的ssh连接和客户端发起的ssh连接
+
+iptables -A INPUT -i ens32 -d 192.168.31.100(controller) -p tcp --sport ssh -m state --state ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o ens32 -s 192.168.31.100 -p tcp --dport ssh -m state --state NEW,ESTABLISHED -j ACCEPT
+打开自身发的ssh连接
+
+iptables -A INPUT -i ens32 -d 192.168.31.100 -p tcp --dport ssh -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o ens32 -s 192.168.31.100 -p rcp --sport ssh -m state --state ESTABLISHED -j ACCEPT 
+打开客户端发起的ssh连接
+
+iptables -A OUTPUT -o ens32 -s 192.168.31.100 -p tcp --dport http -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A INPUIT -i ens32 -d 192.168.31.100 -p tcp --sport http -m state --state ESTABLISHED -j ACCEPT
+打开自身发起的http链接，例如：yum等
+
+IPtables -A OUTPUT -o ens32 -s 192.168.31.100 -p udp --dport 53 -m state --satte NEW,ESTABLISHED -j ACCEPT
+iptables -A INPUT -i ens32 -d 192.168.31.100 - p udp  --sport 53 -m state --state ESTABLISHED -j ACCEPT
+打开自身发起的dns连接
+
+iptables -A OUTPUT -o ens32 -s 192.168.31.100 -p icmp --icmp-type  echo-request -j ACCEPT
+iptables -A INPUT -i ens32 -d 192.168.31.100 -p icmp --icmp-type echo-reply -j ACCEPT
+开大自身发起的icmp连接
+
+iptables -A INPUT -i ens32 -d 192.168.31.100 -p tcp --dport 21 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o ens32 -s 192.168.31.100 -p tcp --sport 21 -m state --state ESTABLISHED -j ACCEPT
+ftp控制层面的iptables配置
+iptables -A INPUT -i ens32 -d 192.168.31.100 -p tcp --dport 20 -m state --state ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o ens32 -s 192.168.31.100 -p tcp --sport 20 -m state --state NEW,ESTABLISHED -j ACCEPT
+ftp主动模式的数据层面iptables配置
+iptables -A INPUT -i ens32 -d 192.168.31.100 -p tcp -m multiport --destinatin-ports 15000:16000 -m state --state NEW,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o ens32 -s 192.168.31.100 -p tcp -m multiport --source-ports 150000:160000 -m state --state ESTABLISHED -j ACCEPT
+ftp被动迷失的数据层面IPtables配置，注意：被动模式在做vsftpd的配置文件中需指定"PASV-MIN-PORTS"及"PASV-MAX-PORTS"的范围；
+同时在配置vsftpd的时候，需要注意在/etc/vsftpd/userlist,/etc/vsftpd/ftpuser两个配置文件中的用户设置；
+
+
+iptables -D INPUT 1 删除指定表里面第1行策略
+
+iptables -nL -v --line-numbers 打印每个iptables表中的策略行数及匹配的具体数量
+
+iptables -Z [INPUT] 将清空指定表里面被策略匹配上的数据，若不指定表名称，责匹配所有表并执行清空匹配数据信息
+
+iptables —P [INPUT] [DROP|ACCEPT] 变更指定表中的默认策略
+
+iptables -X [userdefined] 清除自定义的表
+
+IPtables -F [INPUT] 清除指定表中的策略，若不指定表，则默认删除所有表中的策略
+
+iptables-save 将目前iptables的配置进行保存
+
+
+
+
+在vsftpd的配置文件中打开ssl的，让其进行证书认证登录：（待补充）
+
+
+
+
+
+
+
+
+==============================================================================================
+
+openssl命令工具
+
+
+
+openssl genrsa ---生成证书的命令
+单纯生成秘钥文件
+
+ 
+openssl rsa ---修改证书的命令
+###为RSA秘钥增加des3口令保护
+	openssl rsa -in test.pem -des3 -passout pass:redhat -out test_encryption.pem
+
+
+###为RSA密钥去除口令保护
+	openssl rsa -in test_encryption.pem -passin pass:123456 -out test.pem
+
+
+###修改加密算法为aes128，口令是123456
+	openssl rsa -in RSA.pem -passin pass:123456 -aes128 -passout pass:123456 -out E_RSA.pem
+
+	举例：[root@controller tmp]# openssl rsa -in test_encryption_TGuo.key -passin pass:TGuo520$ -aes128 -passout pass:redhat -out test_encryption_aes.key----先通过passin去除密码，随后通过指定算法[aes128] -passout 添加密码保护。
+
+
+
+openssl req---此命令主要创建和处理 PKCS#10 格式的证书请求 (CSR)。它还可以创建自签名证书，例如用作根 CA。
+
+###检查csr文件是否被修改，同时以文本形式输出（先打印文本，后打印subject，因加了noout选项，因此不打印证书信息）
+	[root@controller openssl]# openssl req -in test_ssl.csr -text -subject -verify -noout
+	verify OK
+	Certificate Request:
+	    Data:
+		Version: 0 (0x0)
+		Subject: CN=192.168.178.100
+		Subject Public Key Info:
+		    Public Key Algorithm: rsaEncryption
+			Public-Key: (2048 bit)
+			Modulus:
+			    00:b3:a0:d7:62:2f:0f:9d:7f:70:dc:ec:5d:eb:f4:
+			    0b:a7:0b:58:de:af:a6:d2:03:6b:43:76:f8:af:e3:
+			    5a:d4:95:33:67:fa:fb:9d:9f:b0:80:96:9a:81:b7:
+			    1b:74:3d:ab:c4:d5:b1:11:45:b1:05:ad:bd:07:17:
+			    3a:70:a6:6b:d7:1b:13:22:7d:b2:06:e3:bc:1c:2b:
+			    e2:5a:dd:4d:11:64:89:3a:ad:db:97:1a:ba:d6:c6:
+			    ec:45:53:3a:5c:32:0b:fd:91:bf:93:5e:89:78:c8:
+			    38:52:5e:69:b2:0d:80:85:1e:98:0a:f8:0c:86:aa:
+			    cb:8c:a0:90:49:3a:eb:1a:ff:29:71:35:e3:02:33:
+			    b6:46:ba:07:1c:31:0a:25:62:40:d9:27:6a:87:1f:
+			    4c:e8:67:cc:41:70:cd:4a:09:94:f3:90:f3:76:8e:
+			    be:b5:b2:b4:8d:94:30:bf:47:93:30:13:12:65:67:
+			    b2:86:8c:8c:a2:72:5d:0b:4e:bc:87:12:07:23:da:
+			    5a:3b:d4:22:ee:81:df:26:00:99:75:bb:c9:1d:19:
+			    ea:0c:95:85:aa:d2:64:78:0b:24:db:74:07:0a:9f:
+			    a0:59:08:fe:25:95:7c:c9:9e:c1:48:13:64:12:77:
+			    f3:9e:a9:68:35:37:1c:d7:f3:4a:60:23:00:4c:b8:
+			    8d:47
+			Exponent: 65537 (0x10001)
+		Attributes:
+		    a0:00
+	    Signature Algorithm: sha256WithRSAEncryption
+		 9f:31:12:e3:cb:91:4c:95:a6:7a:b6:0c:ee:67:fb:bc:81:20:
+		 1e:eb:43:cd:7d:a0:b5:1a:1c:d0:62:03:e7:53:5b:f6:ae:4a:
+		 b6:2e:6b:a8:3f:59:ca:df:44:3b:08:dc:02:67:bf:85:03:65:
+		 26:d8:67:c7:e3:95:58:60:1b:67:14:f7:bf:fe:d1:ac:01:6e:
+		 21:96:1f:0a:46:24:a9:71:2e:6c:64:42:45:42:5d:1b:0f:89:
+		 de:91:46:6f:3a:9e:d5:91:c9:b2:f2:6c:67:8a:f5:39:54:1f:
+		 a3:17:0d:1e:32:01:e8:4f:c8:4b:65:09:78:33:de:b7:f8:4e:
+		 a6:39:b4:d7:3b:ef:c1:a5:d5:c0:43:96:64:3e:78:12:4a:34:
+		 fd:75:7d:9c:c8:0a:df:98:89:e9:6a:c8:20:85:34:52:43:35:
+		 68:49:fa:27:d6:b4:05:1f:50:82:cc:59:d2:3c:d9:77:7e:4a:
+		 56:db:02:3a:01:51:00:d3:7b:97:3d:06:da:4c:3f:c5:ed:8e:
+		 72:00:00:01:60:94:4e:bb:da:12:d4:12:a9:08:79:47:91:d1:
+		 11:5e:20:17:2a:3c:e2:aa:86:86:7f:5e:b4:bb:9a:d0:48:2d:
+		 f1:bd:61:a1:59:05:f6:21:14:40:da:cc:34:6d:d9:f8:f9:92:
+		 a8:89:14:e1
+	subject=/CN=192.168.178.100--->如果加上了-subject选项，这里会在输出text信息后继续显示subject信息。
+
+###生成私钥证书，需指定长度
+	[root@controller tmp]# openssl genrsa -out ftp.key 2048
+	Generating RSA private key, 2048 bit long modulus
+	.....................+++
+	.............+++
+	e is 65537 (0x10001)
+	[root@controller tmp]#
+	通过openssl genrsa生成私钥文件，然后通过openssl rsa加上-passout passwd:XXXX指定密码对私钥进行加密保护。
+
+###生成证书请求文件
+	[root@controller openssl]# openssl req -new -key test_ssl.key -out test_ssl.csr  --->从私钥文件中导出证书申请文件
+	You are about to be asked to enter information that will be incorporated
+	into your certificate request.
+	What you are about to enter is what is called a Distinguished Name or a DN.
+	There are quite a few fields but you can leave some blank
+	For some fields there will be a default value,
+	If you enter '.', the field will be left blank.
+	-----
+	Country Name (2 letter code) [XX]:.
+	State or Province Name (full name) []:.
+	Locality Name (eg, city) [Default City]:.
+	Organization Name (eg, company) [Default Company Ltd]:.
+	Organizational Unit Name (eg, section) []:.
+	Common Name (eg, your name or your server's hostname) []:192.168.178.100
+	Email Address []:
+
+	Please enter the following 'extra' attributes
+	to be sent with your certificate request
+	A challenge password []:
+	An optional company name []:
+
+	根据私钥test_ssl.key文件生成一个新的证书请求文件。其中"-new"表示新生成一个新的证书请求文件，"-key"指定已生成的私钥文件，"-out"指定输出的证书请求文件名，此处输出文件即为证书请求文件。
+	在生成的证书请求文件中，会指定提供国家、省份、城市、组织名（company）、组织单元（）、common name、密码等信息。
+
+###自签根证
+	[root@controller tmp]# openssl req -x509 -nodes -newkey rsa:4096 -keyout test.key -out test.cer -days 365 此命令会生成一个私钥文件和一个公钥文件，忽略csr文件的生成，适合生成一个自签的根证书。同时-nodes选项是为了避免给私钥文件设置密码。
+
+###展示一个完整的自建CA的流程及签发证书的过程：
+	（1）客户端生成私钥文件；
+		openssl genrsa -out client.key 2048
+
+
+	（2）客户端根据私钥文件生成一个新的证书请求csr文件；
+		方法一：openssl genrsa -out client.key 2048 
+			openssl req -new -nodes -key client.key -out client.csr -days 365
+			备注：先生成客户端私钥文件，然后根据客户端私钥文件生成客户端证书请求文件、
+
+		方法二：openssl req -newkey -des3 -passout pass:redhat -keyout client.key -out client.csr -days 365
+			备注：openssl req 通过-newkey选项，直接生成客户端私钥文件，同时生成客户端证书请求文件。
+			在生成私钥证书的时候，可以加上-des3或其他私钥加密保护的选项，配合-passout pass:xxxx 指定私钥文件密码，那么在使用私钥文件创建证书请求文件的时候就需要提供其保护密码。若需要去除其密码保护，可以通过命令openssl rsa -in xx.key -passin pass:xxxx -out xx.key来去除秘钥保护。	
+
+
+	（3）服务端生成CA的私钥文件,并放入/etc/pki/CA/private/目录下，并重命名为cakey.pem;
+		服务端生成私钥文件：openssl genrsa -out /etc/pki/CA/private/cakey.pem 2048 --->后面长度默认为2048，建议长度为4096；
+
+
+	（4）服务端根据私钥文件，生成公钥文件，访问/etc/pki/CA/目录下，并重命名为cacert.pem;
+		方法一：openssl req -new -x509 -nodes -key /etc/pki/CA/private/cakey.pem -out /etc/pki/CA/cacert.pem -days 365
+			先生成私钥文件，而后通过-x509的方式生成根证书文件,并放在/etc/pki/CA/目录下
+		
+		方法二：openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/pki/CA/private/cakey.pem -out /etc/pki/CA/certs/cacert.pem -days 365 
+			生成私钥的同时一并生成root证书，加上-nodes选项,避免给私钥文件加密保护			
+
+		方法三：openssl req -nodes -newkey rsa:2048 -keyout /etc/pki/CA/private/cakey.pem -out cakey.csr -days 365
+			openssl ca -selfsign -in cakey.csr -out cakey.cer 
+			将生成的cakey.pem放在/etc/pki/CA/private目录下，同时通过自签的方式获取cakey.pem对应的rootca.cer文件  
+
+
+	（5）服务端在/etc/pki/CA的目录下，创建serial文件，并echo "01" 到serial 文件中，同时创建数据库文件index.txt；
+		cd /etc/pki/CA
+		touch serial && echo "01" > serial
+		touch index.txt
+
+
+	（6）通过openssl ca 根据客户端的csr文件，签发证书；
+		openssl ca -keyfile /etc/pki/CA/private/cakey.pem -cert /etc/pki/CA/private/certs/cacert.pem -in client.csr -out client.cer
+
+
+==================================================================================================================================================
+
+
